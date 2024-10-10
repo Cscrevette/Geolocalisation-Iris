@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Géolocalisation des IRIS en France avec Géoportail</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        #header {
+            background-color: #155d8d;
+            color: white;
+            padding: 1rem;
+            text-align: center;
+        }
+        #search-container {
+            padding: 1rem;
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+        }
+        #iris-input, #commune-input {
+            padding: 0.5rem;
+            font-size: 1rem;
+            width: 200px;
+        }
+        #search-button {
+            padding: 0.5rem 1rem;
+            font-size: 1rem;
+            background-color: #2ecc71;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        #map-container {
+            flex-grow: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 1rem;
+        }
+        #geoportail-map {
+            width: 100%;
+            height: 100%;
+            border: 1px solid #ccc;
+        }
+    </style>
+</head>
+<body>
+    <div id="header">
+        <h1>Géolocalisation des IRIS en France (V1.0 DV) </h1>
+    </div>
+    <div id="search-container">
+        <input type="text" id="iris-input" placeholder="Entrez le code IRIS">
+        <input type="text" id="commune-input" placeholder="Entrez le nom de la commune">
+        <button id="search-button">Rechercher</button>
+    </div>
+    <div id="map-container">
+        <iframe id="geoportail-map" width="100%" height="100%" frameborder="0" scrolling="no" marginheight="0" marginwidth="0" sandbox="allow-forms allow-scripts allow-same-origin" src="https://www.geoportail.gouv.fr/embed/visu.html?c=2.2090131940634277,48.836861992676006&z=13&l0=STATISTICALUNITS.IRIS::GEOPORTAIL:OGC:WMS(1)&l1=GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2::GEOPORTAIL:OGC:WMTS(0.68)&l2=STATISTICALUNITS.IRISGE::GEOPORTAIL:OGC:WMS(0.6)&permalink=yes" allowfullscreen></iframe>
+    </div>
+
+    <script>
+        async function searchIRIS() {
+            var irisCode = document.getElementById('iris-input').value.trim();
+            var communeName = document.getElementById('commune-input').value.trim().toLowerCase(); // Conversion en minuscules
+            var apiUrl = '';
+
+            // Détermine si l'utilisateur a entré un code IRIS ou un nom de commune
+            if (irisCode) {
+                apiUrl = `https://public.opendatasoft.com/api/records/1.0/search/?dataset=georef-france-iris-millesime&q=${irisCode}`;
+            } else if (communeName) {
+                apiUrl = `https://public.opendatasoft.com/api/records/1.0/search/?dataset=georef-france-iris-millesime&q=${encodeURIComponent(communeName)}`;
+            } else {
+                alert('Veuillez entrer un code IRIS ou un nom de commune.');
+                return;
+            }
+
+            console.log('URL de l\'API:', apiUrl);
+
+            try {
+                // Appel à l'API avec le code IRIS ou le nom de la commune
+                let response = await fetch(apiUrl);
+                console.log('Réponse de l\'API:', response);
+
+                if (!response.ok) {
+                    throw new Error('Erreur lors de la récupération des données. Veuillez vérifier les informations saisies.');
+                }
+
+                let data = await response.json();
+                console.log('Données reçues:', data);
+
+                // Filtrer les résultats par nom de commune (insensible à la casse)
+                if (communeName) {
+                    data.records = data.records.filter(record => 
+                        record.fields.com_name.toLowerCase() === communeName
+                    );
+                }
+
+                // Vérifiez si les données retournées contiennent des coordonnées
+                if (data.records && data.records.length > 0) {
+                    var coordinates = data.records[0].geometry.coordinates;
+                    var lon = coordinates[0];
+                    var lat = coordinates[1];
+                    var zoom = 15;
+
+                    // Mise à jour de l'URL de l'iframe avec les nouvelles coordonnées
+                    var newSrc = `https://www.geoportail.gouv.fr/embed/visu.html?c=${lon},${lat}&z=${zoom}&l0=STATISTICALUNITS.IRIS::GEOPORTAIL:OGC:WMS(1)&l1=GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2::GEOPORTAIL:OGC:WMTS(0.68)&l2=STATISTICALUNITS.IRISGE::GEOPORTAIL:OGC:WMS(0.6)&permalink=yes`;
+                    document.getElementById('geoportail-map').src = newSrc;
+                } else {
+                    alert('Aucun résultat trouvé. Veuillez vérifier les informations saisies.');
+                }
+            } catch (error) {
+                console.error('Erreur:', error);
+                alert(error.message);
+            }
+        }
+
+        // Ajout de l'événement de clic sur le bouton de recherche
+        document.getElementById('search-button').addEventListener('click', searchIRIS);
+
+        // Ajout de l'événement de pression de la touche Entrée dans les champs de recherche
+        document.getElementById('iris-input').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                searchIRIS();
+            }
+        });
+        document.getElementById('commune-input').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                searchIRIS();
+            }
+        });
+    </script>
+</body>
+</html>
